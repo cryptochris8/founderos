@@ -120,6 +120,16 @@ export interface ProjectAsset {
   updatedAt: string;
 }
 
+export interface ProjectNote {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  isPinned?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChecklistItem {
   id: string;
   title: string;

@@ -4,13 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getProject, updateProject, deleteProject } from "@/lib/firebase/projects";
 import {
-  getPrompts, getDocuments, getTasks, getMilestones, getAssets, getChecklist,
+  getPrompts, getDocuments, getTasks, getMilestones, getAssets, getChecklist, getNotes,
   addPrompt, updatePrompt, deletePrompt,
   addDocument, updateDocument, deleteDocument,
   addTask, updateTask, deleteTask,
   addMilestone, updateMilestone,
   addAsset, deleteAsset,
-  addChecklistItem, updateChecklistItem, deleteChecklistItem
+  addChecklistItem, updateChecklistItem, deleteChecklistItem,
+  addNote, updateNote, deleteNote
 } from "@/lib/firebase/subcollections";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TopBar } from "@/components/layout/TopBar";
@@ -27,11 +28,12 @@ import { DocumentsTab } from "@/components/projects/tabs/DocumentsTab";
 import { AssetsTab } from "@/components/projects/tabs/AssetsTab";
 import { MilestonesTab } from "@/components/projects/tabs/MilestonesTab";
 import { ChecklistTab } from "@/components/projects/tabs/ChecklistTab";
+import { NotesTab } from "@/components/projects/tabs/NotesTab";
 import { ExportModal } from "@/components/projects/ExportModal";
 import { ProjectEditForm } from "@/components/projects/ProjectEditForm";
 import type {
   Project, ProjectPrompt, ProjectDocument, ProjectTask,
-  ProjectMilestone, ProjectAsset, ChecklistItem
+  ProjectMilestone, ProjectAsset, ChecklistItem, ProjectNote
 } from "@/types";
 import { ArrowLeft, Download, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -56,6 +58,7 @@ export default function ProjectDetailPage() {
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [notes, setNotes] = useState<ProjectNote[]>([]);
 
   const loadedTabs = useState<Set<string>>(new Set(["overview"]))[0];
 
@@ -76,6 +79,7 @@ export default function ProjectDetailPage() {
     if (tab === "milestones") setMilestones(await getMilestones(user.uid, params.id));
     if (tab === "assets") setAssets(await getAssets(user.uid, params.id));
     if (tab === "checklist") setChecklist(await getChecklist(user.uid, params.id));
+    if (tab === "notes") setNotes(await getNotes(user.uid, params.id));
   }, [user, params.id, loadedTabs]);
 
   const handleTabChange = (tab: string) => {
@@ -180,6 +184,7 @@ export default function ProjectDetailPage() {
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="milestones">Milestones</TabsTrigger>
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview"><OverviewTab project={project} onUpdate={handleUpdateProject} /></TabsContent>
@@ -222,6 +227,13 @@ export default function ProjectDetailPage() {
               onAdd={async (item) => { if (!user) return; const id = await addChecklistItem(user.uid, params.id, item); setChecklist(prev => [...prev, { ...item, id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]); }}
               onUpdate={async (id, item) => { if (!user) return; await updateChecklistItem(user.uid, params.id, id, item); setChecklist(prev => prev.map(x => x.id === id ? { ...x, ...item } : x)); }}
               onDelete={async (id) => { if (!user) return; await deleteChecklistItem(user.uid, params.id, id); setChecklist(prev => prev.filter(x => x.id !== id)); }}
+            />
+          </TabsContent>
+          <TabsContent value="notes">
+            <NotesTab notes={notes}
+              onAdd={async (n) => { if (!user) return; const id = await addNote(user.uid, params.id, n); setNotes(prev => [{ ...n, id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...prev]); }}
+              onUpdate={async (id, n) => { if (!user) return; await updateNote(user.uid, params.id, id, n); setNotes(prev => prev.map(x => x.id === id ? { ...x, ...n } : x)); }}
+              onDelete={async (id) => { if (!user) return; await deleteNote(user.uid, params.id, id); setNotes(prev => prev.filter(x => x.id !== id)); }}
             />
           </TabsContent>
         </Tabs>

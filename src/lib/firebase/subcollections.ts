@@ -3,7 +3,7 @@ import {
   getDocs, orderBy, query, serverTimestamp, Timestamp
 } from "firebase/firestore";
 import { db } from "./config";
-import type { ProjectPrompt, ProjectDocument, ProjectTask, ProjectMilestone, ProjectAsset, ChecklistItem } from "@/types";
+import type { ProjectPrompt, ProjectDocument, ProjectTask, ProjectMilestone, ProjectAsset, ChecklistItem, ProjectNote } from "@/types";
 
 function toStr(ts: unknown): string {
   if (!ts) return new Date().toISOString();
@@ -128,4 +128,25 @@ export async function updateChecklistItem(userId: string, projectId: string, ite
 
 export async function deleteChecklistItem(userId: string, projectId: string, itemId: string): Promise<void> {
   await deleteDoc(doc(db, "users", userId, "projects", projectId, "checklist_items", itemId));
+}
+
+// ── Notes ────────────────────────────────────────────────────────────────────
+
+export async function getNotes(userId: string, projectId: string): Promise<ProjectNote[]> {
+  const q = query(collection(db, "users", userId, "projects", projectId, "notes"), orderBy("updatedAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ ...d.data(), id: d.id, createdAt: toStr(d.data().createdAt), updatedAt: toStr(d.data().updatedAt) } as ProjectNote));
+}
+
+export async function addNote(userId: string, projectId: string, data: Omit<ProjectNote, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  const ref = await addDoc(collection(db, "users", userId, "projects", projectId, "notes"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return ref.id;
+}
+
+export async function updateNote(userId: string, projectId: string, noteId: string, data: Partial<ProjectNote>): Promise<void> {
+  await updateDoc(doc(db, "users", userId, "projects", projectId, "notes", noteId), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteNote(userId: string, projectId: string, noteId: string): Promise<void> {
+  await deleteDoc(doc(db, "users", userId, "projects", projectId, "notes", noteId));
 }
