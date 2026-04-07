@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, ipcMain, dialog, Notification } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -191,6 +192,37 @@ function startNextServer() {
   });
 }
 
+// ── Auto Updater ─────────────────────────────────────────────────────────────
+
+autoUpdater.autoDownload = false;
+autoUpdater.logger = console;
+
+autoUpdater.on("update-available", (info) => {
+  dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Update Available",
+    message: `FounderOS ${info.version} is available. Download now?`,
+    buttons: ["Download", "Later"],
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate();
+    }
+  });
+});
+
+autoUpdater.on("update-downloaded", () => {
+  dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Update Ready",
+    message: "Update downloaded. Restart to apply?",
+    buttons: ["Restart", "Later"],
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+});
+
 // ── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
@@ -201,6 +233,11 @@ app.whenReady().then(async () => {
     await waitForServer(PORT);
     console.log("Next.js server is ready!");
     createWindow();
+
+    // Check for updates in production
+    if (!DEV) {
+      autoUpdater.checkForUpdates().catch(() => {});
+    }
   } catch (err) {
     console.error(err.message);
     app.quit();

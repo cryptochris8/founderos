@@ -14,12 +14,10 @@ import {
   addNote, updateNote, deleteNote
 } from "@/lib/firebase/subcollections";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { TopBar } from "@/components/layout/TopBar";
+import { ProjectStickyHeader } from "@/components/projects/ProjectStickyHeader";
+import { QuickActions } from "@/components/projects/QuickActions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { StageBadge } from "@/components/projects/StageBadge";
-import { PriorityBadge } from "@/components/projects/PriorityBadge";
 import { OverviewTab } from "@/components/projects/tabs/OverviewTab";
 import { StatusTab } from "@/components/projects/tabs/StatusTab";
 import { RoadmapTab } from "@/components/projects/tabs/RoadmapTab";
@@ -123,7 +121,7 @@ export default function ProjectDetailPage() {
 
   return (
     <AppLayout>
-      <TopBar title={project.title} />
+      <ProjectStickyHeader project={project} />
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
@@ -133,29 +131,21 @@ export default function ProjectDetailPage() {
           </Link>
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold">{project.title}</h1>
-                <StageBadge stage={project.stage} />
-                <PriorityBadge priority={project.priority} />
-              </div>
               <p className="text-muted-foreground">{project.shortDescription}</p>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span>{project.percentComplete}% complete</span>
-                {project.nextAction && <span className="text-foreground/70">Next: {project.nextAction}</span>}
-              </div>
-              <div className="max-w-sm">
-                <Progress value={project.percentComplete} className="h-2" />
-              </div>
+              {project.nextAction && (
+                <p className="text-sm text-foreground/70">Next: {project.nextAction}</p>
+              )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              <QuickActions project={project} />
               <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowExport(true)}>
                 <Download className="h-4 w-4" />
-                Export
+                <span className="hidden sm:inline">Export</span>
               </Button>
               <Dialog open={showEdit} onOpenChange={setShowEdit}>
                 <DialogTrigger render={<Button variant="outline" size="sm" className="gap-2" />}>
                   <Pencil className="h-4 w-4" />
-                  Edit
+                  <span className="hidden sm:inline">Edit</span>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>

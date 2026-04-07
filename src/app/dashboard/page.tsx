@@ -14,6 +14,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { DashboardSkeleton } from "@/components/shared/Skeleton";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { calculateHealth } from "@/lib/scoring";
+import { seedDemoProjects } from "@/lib/firebase/seed";
+import { Circle, Sparkles } from "lucide-react";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -60,10 +63,20 @@ export default function DashboardPage() {
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <FolderOpen className="h-16 w-16 text-muted-foreground mb-4" />
                 <h2 className="text-xl font-semibold mb-2">No projects yet</h2>
-                <p className="text-muted-foreground mb-6">Start by creating your first project</p>
-                <Link href="/projects/new">
-                  <Button className="gap-2"><Plus className="h-4 w-4" />New Project</Button>
-                </Link>
+                <p className="text-muted-foreground mb-6">Start by creating your first project or load demo data</p>
+                <div className="flex gap-3">
+                  <Link href="/projects/new">
+                    <Button className="gap-2"><Plus className="h-4 w-4" />New Project</Button>
+                  </Link>
+                  <Button variant="outline" className="gap-2" onClick={async () => {
+                    if (!user) return;
+                    await seedDemoProjects(user.uid);
+                    const ps = await getProjects(user.uid);
+                    setProjects(ps.map(enrichProjectWithScore));
+                  }}>
+                    <Sparkles className="h-4 w-4" />Load Demo Projects
+                  </Button>
+                </div>
               </div>
             ) : (
               <>
@@ -77,17 +90,24 @@ export default function DashboardPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {focusProjects.map(p => (
-                        <Link key={p.id} href={`/projects/${p.id}`}>
-                          <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
-                            <div>
-                              <p className="font-medium text-sm">{p.title}</p>
-                              <p className="text-xs text-muted-foreground">{p.stage} · {p.nextAction || "No next action set"}</p>
+                      {focusProjects.map(p => {
+                        const health = calculateHealth(p);
+                        const hColor = health.status === "green" ? "text-green-400" : health.status === "yellow" ? "text-yellow-400" : "text-red-400";
+                        return (
+                          <Link key={p.id} href={`/projects/${p.id}`}>
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
+                              <div className="flex items-center gap-2">
+                                <Circle className={`h-2.5 w-2.5 fill-current shrink-0 ${hColor}`} />
+                                <div>
+                                  <p className="font-medium text-sm">{p.title}</p>
+                                  <p className="text-xs text-muted-foreground">{p.stage} · {p.nextAction || "No next action set"}</p>
+                                </div>
+                              </div>
+                              <span className="text-xs font-bold text-primary">{p.focusScore}/10</span>
                             </div>
-                            <span className="text-xs font-bold text-primary">{p.focusScore}/10</span>
-                          </div>
-                        </Link>
-                      ))}
+                          </Link>
+                        );
+                      })}
                     </CardContent>
                   </Card>
 

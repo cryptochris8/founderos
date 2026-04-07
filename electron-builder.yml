@@ -38,3 +38,8 @@ linux:
   target:
     - AppImage
   icon: public/favicon.ico
+
+publish:
+  provider: github
+  owner: cryptochris8
+  repo: founderos
