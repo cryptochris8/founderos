@@ -1,5 +1,6 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, dialog, Notification } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { spawn } = require("child_process");
 const net = require("net");
 
@@ -46,6 +47,80 @@ function createWindow() {
   });
 }
 
+// ── IPC Handlers ─────────────────────────────────────────────────────────────
+
+// Save file with system dialog
+ipcMain.handle("save-file", async (_event, filename, content) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: filename,
+    filters: [
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  if (!result.canceled && result.filePath) {
+    fs.writeFileSync(result.filePath, content, "utf-8");
+    return { success: true, path: result.filePath };
+  }
+  return { success: false };
+});
+
+// Export markdown with save dialog
+ipcMain.handle("export-markdown", async (_event, filename, content) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: filename,
+    filters: [
+      { name: "Markdown", extensions: ["md"] },
+      { name: "Text", extensions: ["txt"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  if (!result.canceled && result.filePath) {
+    fs.writeFileSync(result.filePath, content, "utf-8");
+    return { success: true, path: result.filePath };
+  }
+  return { success: false };
+});
+
+// Window controls
+ipcMain.on("window-minimize", () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.on("window-maximize", () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+
+ipcMain.on("window-close", () => {
+  mainWindow?.close();
+});
+
+ipcMain.handle("window-is-maximized", () => {
+  return mainWindow?.isMaximized() ?? false;
+});
+
+// OS notifications
+ipcMain.on("show-notification", (_event, title, body) => {
+  new Notification({ title, body }).show();
+});
+
+// Open external URLs
+ipcMain.on("open-external", (_event, url) => {
+  if (url && typeof url === "string" && url.startsWith("http")) {
+    shell.openExternal(url);
+  }
+});
+
+// App version
+ipcMain.handle("get-app-version", () => {
+  return app.getVersion();
+});
+
+// ── Server Management ────────────────────────────────────────────────────────
+
 function waitForServer(port, retries = 60) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
@@ -88,7 +163,6 @@ function startNextServer() {
   const projectRoot = path.join(__dirname, "..");
 
   if (DEV) {
-    // In dev mode, run `next dev`
     nextProcess = spawn("npx", ["next", "dev", "--port", String(PORT)], {
       cwd: projectRoot,
       shell: true,
@@ -96,7 +170,6 @@ function startNextServer() {
       env: { ...process.env, BROWSER: "none" },
     });
   } else {
-    // In production, run `next start` (requires `next build` first)
     nextProcess = spawn("npx", ["next", "start", "--port", String(PORT)], {
       cwd: projectRoot,
       shell: true,
@@ -117,6 +190,8 @@ function startNextServer() {
     console.error("Failed to start Next.js server:", err);
   });
 }
+
+// ── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
   startNextServer();

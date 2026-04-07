@@ -36,6 +36,7 @@ import type {
   ProjectMilestone, ProjectAsset, ChecklistItem, ProjectNote
 } from "@/types";
 import { ArrowLeft, Download, Pencil, Trash2 } from "lucide-react";
+import { ProjectDetailSkeleton } from "@/components/shared/Skeleton";
 import Link from "next/link";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
@@ -104,10 +105,7 @@ export default function ProjectDetailPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="p-6 space-y-4">
-          <div className="h-8 w-64 bg-card rounded animate-pulse" />
-          <div className="h-32 bg-card rounded animate-pulse" />
-        </div>
+        <ProjectDetailSkeleton />
       </AppLayout>
     );
   }

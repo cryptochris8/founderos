@@ -12,6 +12,8 @@ import { FolderOpen, Zap, FlaskConical, Rocket, Globe, AlertTriangle, Plus } fro
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DashboardSkeleton } from "@/components/shared/Skeleton";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -41,11 +43,7 @@ export default function DashboardPage() {
       <TopBar title="Dashboard" showNewProject />
       <div className="p-6 space-y-6">
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-28 rounded-lg bg-card animate-pulse" />
-            ))}
-          </div>
+          <DashboardSkeleton />
         ) : (
           <>
             {/* Stat Cards */}

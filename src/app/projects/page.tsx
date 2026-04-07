@@ -15,6 +15,7 @@ import { StageBadge } from "@/components/projects/StageBadge";
 import { PriorityBadge } from "@/components/projects/PriorityBadge";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
+import { CardSkeleton } from "@/components/shared/Skeleton";
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -74,7 +75,7 @@ export default function ProjectsPage() {
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-48 rounded-lg bg-card animate-pulse" />)}
+            {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">

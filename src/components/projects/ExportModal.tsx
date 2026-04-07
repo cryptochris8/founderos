@@ -42,12 +42,20 @@ export function ExportModal({ project, prompts, checklist, milestones, onClose }
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const download = () => {
+  const download = async () => {
+    const filename = `${project.slug}-${exportType}.md`;
+    // Use native file save dialog when running in Electron
+    const api = (window as unknown as { electronAPI?: { exportMarkdown: (f: string, c: string) => Promise<{ success: boolean }> } }).electronAPI;
+    if (api?.exportMarkdown) {
+      await api.exportMarkdown(filename, markdown);
+      return;
+    }
+    // Fallback: browser download
     const blob = new Blob([markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${project.slug}-${exportType}.md`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
