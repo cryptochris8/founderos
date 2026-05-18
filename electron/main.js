@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 const net = require("net");
+const { parse: parseShell } = require("shell-quote");
 
 const PORT = 3000;
 const DEV = process.env.NODE_ENV !== "production";
@@ -118,6 +119,133 @@ ipcMain.on("open-external", (_event, url) => {
 // App version
 ipcMain.handle("get-app-version", () => {
   return app.getVersion();
+});
+
+// ── FounderOS Desktop Actions ────────────────────────────────────────────────
+
+// Pick a folder via system dialog
+ipcMain.handle("select-folder", async (_event, defaultPath) => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory"],
+    defaultPath: typeof defaultPath === "string" ? defaultPath : undefined,
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true, path: null };
+  }
+  return { canceled: false, path: result.filePaths[0] };
+});
+
+// Open a folder in the system file explorer
+ipcMain.handle("open-folder", async (_event, folderPath) => {
+  if (typeof folderPath !== "string" || !folderPath) {
+    return { success: false, error: "Invalid path" };
+  }
+  const err = await shell.openPath(folderPath);
+  if (err) {
+    return { success: false, error: err };
+  }
+  return { success: true };
+});
+
+// Open a terminal at the given folder. Defaults to Windows Terminal (wt.exe).
+ipcMain.handle("open-terminal", async (_event, folderPath, terminalCommand) => {
+  if (typeof folderPath !== "string" || !folderPath) {
+    return { success: false, error: "Invalid path" };
+  }
+  const cmd = (terminalCommand && typeof terminalCommand === "string") ? terminalCommand : "wt.exe";
+  let args;
+  if (cmd === "wt.exe") {
+    args = ["-d", folderPath];
+  } else if (cmd.toLowerCase().includes("powershell")) {
+    args = ["-NoExit", "-Command", `Set-Location -LiteralPath ${JSON.stringify(folderPath)}`];
+  } else {
+    // cmd.exe and similar
+    args = ["/K", `cd /d ${JSON.stringify(folderPath)}`];
+  }
+  try {
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+    child.on("error", (e) => console.warn(`open-terminal failed: ${e.message}`));
+    child.unref();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err && err.message ? err.message : err) };
+  }
+});
+
+// Open the given folder in Cursor (or configured editor command)
+ipcMain.handle("open-in-cursor", async (_event, folderPath, editorCommand) => {
+  if (typeof folderPath !== "string" || !folderPath) {
+    return { success: false, error: "Invalid path" };
+  }
+  const cmd = (editorCommand && typeof editorCommand === "string") ? editorCommand : "cursor";
+  try {
+    // shell: true is needed on Windows so .cmd shims resolve via PATH.
+    // Path is passed as a separate arg, so the shell quotes it for us.
+    const child = spawn(cmd, [folderPath], { detached: true, stdio: "ignore", shell: true });
+    child.on("error", (e) => console.warn(`open-in-cursor failed: ${e.message}`));
+    child.unref();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err && err.message ? err.message : err) };
+  }
+});
+
+// Launch Claude Code in a project folder. Opens a new terminal running `claude`.
+ipcMain.handle("run-claude-code", async (_event, folderPath, claudeCommand) => {
+  if (typeof folderPath !== "string" || !folderPath) {
+    return { success: false, error: "Invalid path" };
+  }
+  const claude = (claudeCommand && typeof claudeCommand === "string") ? claudeCommand : "claude";
+  // Open Windows Terminal at the project folder running the claude command.
+  // wt.exe accepts `-d <path>` then the command to run after the path.
+  try {
+    const child = spawn("wt.exe", ["-d", folderPath, claude], { detached: true, stdio: "ignore" });
+    child.on("error", (e) => console.warn(`run-claude-code failed: ${e.message}`));
+    child.unref();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err && err.message ? err.message : err) };
+  }
+});
+
+// Run a user-defined command preset. Always shows a confirmation dialog.
+ipcMain.handle("run-command", async (_event, preset) => {
+  if (!preset || typeof preset.command !== "string" || !preset.command.trim()) {
+    return { success: false, error: "Invalid command preset" };
+  }
+  const cwd = (preset.workingDirectory && typeof preset.workingDirectory === "string")
+    ? preset.workingDirectory
+    : undefined;
+
+  const confirm = await dialog.showMessageBox(mainWindow, {
+    type: "question",
+    title: "Run command?",
+    message: `Run "${preset.label || preset.command}"?`,
+    detail: `Command: ${preset.command}\nDirectory: ${cwd || "(default)"}`,
+    buttons: ["Run", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (confirm.response !== 0) return { success: false, canceled: true };
+
+  // Parse the command safely with shell-quote (no string interpolation into shell).
+  const tokens = parseShell(preset.command).filter((t) => typeof t === "string");
+  if (tokens.length === 0) return { success: false, error: "Empty command after parsing" };
+  const [head, ...args] = tokens;
+
+  try {
+    const child = spawn(head, args, {
+      cwd,
+      detached: true,
+      stdio: "ignore",
+      shell: true, // resolve .cmd shims on Windows
+    });
+    child.on("error", (e) => console.warn(`run-command failed: ${e.message}`));
+    child.unref();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err && err.message ? err.message : err) };
+  }
 });
 
 // ── Server Management ────────────────────────────────────────────────────────

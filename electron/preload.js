@@ -22,4 +22,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // App info
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+
+  // FounderOS desktop actions
+  selectFolder: (defaultPath) => ipcRenderer.invoke("select-folder", defaultPath),
+  openFolder: (folderPath) => ipcRenderer.invoke("open-folder", folderPath),
+  openTerminal: (folderPath, terminalCommand) =>
+    ipcRenderer.invoke("open-terminal", folderPath, terminalCommand),
+  openInCursor: (folderPath, editorCommand) =>
+    ipcRenderer.invoke("open-in-cursor", folderPath, editorCommand),
+  runClaudeCode: (folderPath, claudeCommand) =>
+    ipcRenderer.invoke("run-claude-code", folderPath, claudeCommand),
+  runCommand: (preset) => ipcRenderer.invoke("run-command", preset),
 });

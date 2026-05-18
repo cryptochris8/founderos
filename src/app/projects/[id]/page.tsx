@@ -19,6 +19,7 @@ import { QuickActions } from "@/components/projects/QuickActions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { OverviewTab } from "@/components/projects/tabs/OverviewTab";
+import { WorkspaceTab } from "@/components/projects/tabs/WorkspaceTab";
 import { StatusTab } from "@/components/projects/tabs/StatusTab";
 import { RoadmapTab } from "@/components/projects/tabs/RoadmapTab";
 import { PromptsTab } from "@/components/projects/tabs/PromptsTab";
@@ -165,6 +166,7 @@ export default function ProjectDetailPage() {
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="workspace">Workspace</TabsTrigger>
             <TabsTrigger value="status">Status</TabsTrigger>
             <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
@@ -176,6 +178,7 @@ export default function ProjectDetailPage() {
           </TabsList>
 
           <TabsContent value="overview"><OverviewTab project={project} onUpdate={handleUpdateProject} /></TabsContent>
+          <TabsContent value="workspace"><WorkspaceTab project={project} onUpdate={handleUpdateProject} /></TabsContent>
           <TabsContent value="status">
             <StatusTab project={project} tasks={tasks} onUpdateProject={handleUpdateProject}
               onAddTask={async (t) => { if (!user) return; const id = await addTask(user.uid, params.id, t); setTasks(prev => [...prev, { ...t, id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]); }}

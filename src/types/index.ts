@@ -16,6 +16,48 @@ export type ProjectPriority = "Low" | "Medium" | "High" | "Critical";
 export type TaskStatus = "todo" | "in-progress" | "blocked" | "done";
 export type MilestoneStatus = "upcoming" | "active" | "completed";
 
+export interface ProjectSocialLinks {
+  tiktok?: string;
+  reddit?: string;
+  instagram?: string;
+  x?: string;
+  youtube?: string;
+  facebook?: string;
+  website?: string;
+}
+
+export interface ProjectToolOverrides {
+  aiTool?: string;
+  editor?: string;
+  hosting?: string;
+  domainRegistrar?: string;
+  voiceProvider?: string;
+  artProvider?: string;
+  videoPipeline?: string;
+}
+
+export interface ProjectAssetFolders {
+  root?: string;
+  logos?: string;
+  screenshots?: string;
+  gameplayRecordings?: string;
+  voiceovers?: string;
+  sfx?: string;
+  music?: string;
+  art?: string;
+  videoExports?: string;
+  socialExports?: string;
+  prompts?: string;
+}
+
+export interface ProjectCommand {
+  id: string;
+  label: string;
+  command: string;
+  workingDirectory?: string;
+  description?: string;
+}
+
 export interface Project {
   id: string;
   ownerId: string;
@@ -54,6 +96,23 @@ export interface Project {
   excitementScore?: number;
   launchReadinessScore?: number;
   focusScore?: number;
+  // FounderOS desktop command-center fields
+  localPath?: string;
+  assetPath?: string;
+  githubUrl?: string;
+  netlifyUrl?: string;
+  firebaseUrl?: string;
+  appStoreConnectUrl?: string;
+  testFlightUrl?: string;
+  websiteUrl?: string;
+  socialLinks?: ProjectSocialLinks;
+  toolOverrides?: ProjectToolOverrides;
+  assetFolders?: ProjectAssetFolders;
+  commandPresets?: ProjectCommand[];
+  claudeContext?: string;
+  brandNotes?: string;
+  marketingNotes?: string;
+  launchChecklist?: string[];
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -196,6 +255,54 @@ export interface UserProfile {
   defaultProjectSort?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ToolchainDefaults {
+  ai: {
+    defaultAI: string;
+    defaultEditor: string;
+    fallbackEditor: string;
+    implementationStyle: string;
+  };
+  hosting: {
+    websiteHosting: string;
+    domainRegistrar: string;
+    dnsNotes: string;
+  };
+  audio: {
+    voiceProvider: string;
+    sfxProvider: string;
+    audioProcessing: string;
+    notes: string;
+  };
+  images: {
+    artProvider: string;
+    imageAutomation: string;
+    notes: string;
+  };
+  video: {
+    videoAutomation: string;
+    sourceFootage: string;
+    voiceovers: string;
+    rendering: string;
+    formats: string[];
+  };
+  dictation: {
+    dictation: string;
+    notes: string;
+  };
+  terminal: {
+    defaultCommand: string;
+  };
+  paths: {
+    globalAssetLibrary: string;
+    globalExports: string;
+  };
+  executables: {
+    claudeCode: string;
+    cursor: string;
+  };
+  updatedAt?: string;
 }
 
 export const PROJECT_STAGES: ProjectStage[] = [

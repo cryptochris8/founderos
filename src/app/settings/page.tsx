@@ -12,6 +12,7 @@ import { updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCre
 import { auth } from "@/lib/firebase/config";
 import { toast } from "sonner";
 import { User, Shield, Info, Database } from "lucide-react";
+import { ToolchainSettings } from "@/components/settings/ToolchainSettings";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -65,7 +66,10 @@ export default function SettingsPage() {
   return (
     <AppLayout>
       <TopBar title="Settings" />
-      <div className="p-6 max-w-2xl space-y-4">
+      <div className="p-6 max-w-3xl space-y-4">
+        {/* Toolchain, executables, asset library */}
+        <ToolchainSettings />
+
         {/* Profile */}
         <Card>
           <CardHeader>
