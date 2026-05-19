@@ -13,13 +13,14 @@ let mainWindow;
 let nextProcess;
 
 function createWindow() {
+  const iconPath = path.join(__dirname, "..", "public", "favicon.ico");
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 900,
     minHeight: 600,
     title: "FounderOS",
-    icon: path.join(__dirname, "..", "public", "favicon.ico"),
+    ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

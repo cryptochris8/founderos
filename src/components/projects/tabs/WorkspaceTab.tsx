@@ -8,9 +8,10 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { getToolchain } from "@/lib/firebase/settings";
 import { DEFAULT_TOOLCHAIN } from "@/lib/defaults/toolchain";
-import type { Project, ProjectSocialLinks, ProjectToolOverrides, ToolchainDefaults } from "@/types";
+import type { Project, ProjectCommand, ProjectSocialLinks, ProjectToolOverrides, ToolchainDefaults } from "@/types";
 import {
   FolderOpen, TerminalSquare, Code2, Sparkles, Github, Globe, Flame, Apple, Send, ExternalLink, Play,
+  Plus, Pencil, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,14 +34,113 @@ const TOOL_KEYS: Array<{ key: keyof ProjectToolOverrides; label: string }> = [
   { key: "videoPipeline", label: "Video pipeline" },
 ];
 
+const EMPTY_DRAFT: ProjectCommand = { id: "", label: "", command: "" };
+
 export function WorkspaceTab({ project, onUpdate }: Props) {
   const { user } = useAuth();
   const [toolchain, setToolchain] = useState<ToolchainDefaults>(DEFAULT_TOOLCHAIN);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ProjectCommand>(EMPTY_DRAFT);
 
   useEffect(() => {
     if (!user) return;
     getToolchain(user.uid).then(setToolchain).catch(() => {});
   }, [user]);
+
+  const presets = project.commandPresets || [];
+  const isNewPreset = editingId !== null && !presets.some((p) => p.id === editingId);
+
+  const startAdd = () => {
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setDraft({ id, label: "", command: "" });
+    setEditingId(id);
+  };
+
+  const startEdit = (preset: ProjectCommand) => {
+    setDraft({ ...preset });
+    setEditingId(preset.id);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft(EMPTY_DRAFT);
+  };
+
+  const saveEdit = async () => {
+    const label = draft.label.trim();
+    const command = draft.command.trim();
+    if (!label || !command) {
+      toast.error("Label and command are required");
+      return;
+    }
+    const cleaned: ProjectCommand = {
+      id: draft.id,
+      label,
+      command,
+      ...(draft.workingDirectory?.trim() ? { workingDirectory: draft.workingDirectory.trim() } : {}),
+      ...(draft.description?.trim() ? { description: draft.description.trim() } : {}),
+    };
+    const exists = presets.some((p) => p.id === draft.id);
+    const next = exists
+      ? presets.map((p) => (p.id === draft.id ? cleaned : p))
+      : [...presets, cleaned];
+    await onUpdate({ commandPresets: next });
+    toast.success(exists ? "Preset updated" : "Preset added");
+    cancelEdit();
+  };
+
+  const deletePreset = async (id: string) => {
+    await onUpdate({ commandPresets: presets.filter((p) => p.id !== id) });
+    toast.success("Preset deleted");
+  };
+
+  const renderEditRow = (key: string) => (
+    <div key={key} className="p-3 rounded border border-border space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Label</Label>
+          <Input
+            value={draft.label}
+            onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+            placeholder="Install deps"
+            autoFocus
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Working directory (optional)</Label>
+          <Input
+            value={draft.workingDirectory || ""}
+            onChange={(e) => setDraft({ ...draft, workingDirectory: e.target.value })}
+            placeholder="(uses project local path)"
+          />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Command</Label>
+        <Input
+          value={draft.command}
+          onChange={(e) => setDraft({ ...draft, command: e.target.value })}
+          placeholder="npm install"
+          className="font-mono"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Description (optional)</Label>
+        <Input
+          value={draft.description || ""}
+          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          placeholder="What does this do?"
+        />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>
+        <Button size="sm" onClick={saveEdit}>Save</Button>
+      </div>
+    </div>
+  );
 
   const api = typeof window !== "undefined" ? window.electronAPI : undefined;
   const editorCmd = project.toolOverrides?.editor || toolchain.executables.cursor;
@@ -232,33 +332,72 @@ export function WorkspaceTab({ project, onUpdate }: Props) {
         </CardContent>
       </Card>
 
-      {/* Command presets (read + run; full CRUD is Phase 2) */}
+      {/* Command presets */}
       <Card className="lg:col-span-2">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Command Presets</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={startAdd}
+            disabled={editingId !== null}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add preset
+          </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {project.commandPresets && project.commandPresets.length > 0 ? (
-            project.commandPresets.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 p-2 rounded border border-border">
+          {presets.length === 0 && editingId === null && (
+            <p className="text-sm text-muted-foreground">
+              No command presets defined. Click &quot;Add preset&quot; to create one.
+            </p>
+          )}
+          {presets.map((c) =>
+            editingId === c.id ? (
+              renderEditRow(c.id)
+            ) : (
+              <div key={c.id} className="flex items-center gap-2 p-2 rounded border border-border">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium">{c.label}</div>
                   <div className="text-xs text-muted-foreground font-mono truncate">{c.command}</div>
                   {c.workingDirectory && (
                     <div className="text-xs text-muted-foreground truncate">cwd: {c.workingDirectory}</div>
                   )}
+                  {c.description && (
+                    <div className="text-xs text-muted-foreground truncate">{c.description}</div>
+                  )}
                 </div>
-                <Button variant="outline" size="sm" className="gap-1.5"
-                  onClick={() => callApi(`Run ${c.label}`, api ? () => api.runCommand(c) : undefined)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => callApi(`Run ${c.label}`, api ? () => api.runCommand(c) : undefined)}
+                  disabled={editingId !== null}
+                >
                   <Play className="h-3.5 w-3.5" /> Run
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => startEdit(c)}
+                  disabled={editingId !== null}
+                  aria-label="Edit preset"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deletePreset(c.id)}
+                  disabled={editingId !== null}
+                  aria-label="Delete preset"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No command presets defined. Adding presets via UI is planned for Phase 2 — for now, you can set them in seed.ts or via Firestore.
-            </p>
+            ),
           )}
+          {isNewPreset && renderEditRow(draft.id)}
         </CardContent>
       </Card>
     </div>
