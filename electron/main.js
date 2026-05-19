@@ -300,11 +300,18 @@ function startNextServer() {
       env: { ...process.env, BROWSER: "none" },
     });
   } else {
-    nextProcess = spawn("npx", ["next", "start", "--port", String(PORT)], {
+    // Production: run the next binary directly under Electron's bundled
+    // Node (ELECTRON_RUN_AS_NODE=1) so the installer doesn't depend on
+    // the user having Node/npx on PATH, and so we avoid shell parsing.
+    const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
+    nextProcess = spawn(process.execPath, [nextBin, "start", "--port", String(PORT)], {
       cwd: projectRoot,
-      shell: true,
       stdio: "pipe",
-      env: { ...process.env, BROWSER: "none" },
+      env: {
+        ...process.env,
+        BROWSER: "none",
+        ELECTRON_RUN_AS_NODE: "1",
+      },
     });
   }
 
