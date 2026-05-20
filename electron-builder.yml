@@ -18,10 +18,7 @@ files:
   - ".next/**/*"
   - "node_modules/**/*"
   - "package.json"
-  - "next.config.ts"
-  - "tsconfig.json"
-  - "postcss.config.mjs"
-  - "components.json"
+  - "next.config.mjs"
   - ".env.local"
 
 win:

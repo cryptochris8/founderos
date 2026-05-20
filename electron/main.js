@@ -7,7 +7,11 @@ const net = require("net");
 const { parse: parseShell } = require("shell-quote");
 
 const PORT = 3000;
-const DEV = process.env.NODE_ENV !== "production";
+// app.isPackaged is the reliable production signal — Electron does not set
+// NODE_ENV=production in a packaged build, so relying on it alone made the
+// installed app run `next dev` instead of `next start`. NODE_ENV is still
+// honored so `npm run electron:start` can exercise the production path.
+const DEV = !app.isPackaged && process.env.NODE_ENV !== "production";
 
 let mainWindow;
 let nextProcess;
