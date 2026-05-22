@@ -13,6 +13,25 @@ const PORT = 3000;
 // honored so `npm run electron:start` can exercise the production path.
 const DEV = !app.isPackaged && process.env.NODE_ENV !== "production";
 
+// Hide "Electron" / "FounderOS" from the user agent so Google OAuth doesn't
+// reject the popup as a non-standard browser (disallowed_useragent). Matches
+// Electron's bundled Chromium version so the UA is still authentic.
+app.userAgentFallback = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
+// Hosts whose window.open requests should open as in-app child windows
+// (Firebase auth handler + Google OAuth flow). Everything else is sent to
+// the system browser.
+const AUTH_POPUP_HOSTS = ["firebaseapp.com", "accounts.google.com", "google.com"];
+
+function isAuthPopupUrl(url) {
+  try {
+    const u = new URL(url);
+    return AUTH_POPUP_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h));
+  } catch {
+    return false;
+  }
+}
+
 let mainWindow;
 let nextProcess;
 
@@ -41,8 +60,21 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Open external links in the system browser, not Electron
+  // Auth popups (Firebase/Google OAuth) need to open as real Electron child
+  // windows so signInWithPopup can postMessage the credential back. Other
+  // external links open in the system browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAuthPopupUrl(url)) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 500,
+          height: 700,
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false },
+        },
+      };
+    }
     if (url.startsWith("http")) {
       shell.openExternal(url);
     }
