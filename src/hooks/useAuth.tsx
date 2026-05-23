@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import {
   User, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-  createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup
+  createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 
@@ -40,6 +40,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    // In Electron, use the system-browser loopback OAuth flow. Google blocks
+    // signInWithPopup in embedded browsers ("this browser may not be secure")
+    // regardless of user-agent spoofing.
+    if (typeof window !== "undefined" && window.electronAPI?.googleOAuth) {
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID;
+      if (!clientId) {
+        throw new Error(
+          "NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is not set. Create a Desktop OAuth client in Google Cloud Console and add its client ID to .env.local, then rebuild.",
+        );
+      }
+      const res = await window.electronAPI.googleOAuth(clientId);
+      if (!res.success || !res.idToken) {
+        throw new Error(res.error || "Google sign-in failed");
+      }
+      const credential = GoogleAuthProvider.credential(res.idToken, res.accessToken || undefined);
+      await signInWithCredential(auth, credential);
+      return;
+    }
     await signInWithPopup(auth, googleProvider);
   };
 
