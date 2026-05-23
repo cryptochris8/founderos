@@ -16,7 +16,17 @@ const DEV = !app.isPackaged && process.env.NODE_ENV !== "production";
 // Hide "Electron" / "FounderOS" from the user agent so Google OAuth doesn't
 // reject the popup as a non-standard browser (disallowed_useragent). Matches
 // Electron's bundled Chromium version so the UA is still authentic.
-app.userAgentFallback = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+const CLEAN_CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+app.userAgentFallback = CLEAN_CHROME_UA;
+
+// userAgentFallback alone is not enough — Electron applies a session-level
+// default UA (containing "Electron" + the app name) that wins for new
+// webContents. setUserAgent on the contents directly overrides it, and
+// firing on web-contents-created catches the main window AND every popup
+// (including the Google OAuth popup) before its first navigation.
+app.on("web-contents-created", (_event, contents) => {
+  contents.setUserAgent(CLEAN_CHROME_UA);
+});
 
 // Hosts whose window.open requests should open as in-app child windows
 // (Firebase auth handler + Google OAuth flow). Everything else is sent to
