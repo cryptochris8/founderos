@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const crypto = require("crypto");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const net = require("net");
 const { parse: parseShell } = require("shell-quote");
 
@@ -477,6 +477,30 @@ function startNextServer() {
   });
 }
 
+// Stop the embedded Next.js server and ALL of its children. On Windows a plain
+// nextProcess.kill() only signals the immediate child (a shell in dev, the node
+// parent in prod) and leaves the real server + Turbopack workers alive, holding
+// port 3000 — so the next launch fails with EADDRINUSE and hangs. taskkill /T
+// kills the whole tree; spawnSync so it finishes before the app exits. Null out
+// nextProcess so the window-all-closed + before-quit handlers don't double-fire.
+function stopNextServer() {
+  if (!nextProcess || !nextProcess.pid) {
+    nextProcess = null;
+    return;
+  }
+  const pid = nextProcess.pid;
+  nextProcess = null;
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      process.kill(pid, "SIGTERM");
+    }
+  } catch {
+    // best effort — the OS reclaims the port once the process tree is gone
+  }
+}
+
 // ── Auto Updater ─────────────────────────────────────────────────────────────
 
 autoUpdater.autoDownload = false;
@@ -530,16 +554,12 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (nextProcess) {
-    nextProcess.kill();
-  }
+  stopNextServer();
   app.quit();
 });
 
 app.on("before-quit", () => {
-  if (nextProcess) {
-    nextProcess.kill();
-  }
+  stopNextServer();
 });
 
 app.on("activate", () => {
