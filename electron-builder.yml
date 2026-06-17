@@ -2,6 +2,12 @@ appId: com.founderos.app
 productName: FounderOS
 copyright: Copyright © 2026
 
+# Disabled because the embedded Next.js server spawns a child process
+# whose cwd must be a real filesystem path. Inside an asar archive,
+# next start cannot read .next/ files or set cwd, causing the window
+# to hang on a loading state forever.
+asar: false
+
 directories:
   output: dist-electron
 
@@ -12,10 +18,7 @@ files:
   - ".next/**/*"
   - "node_modules/**/*"
   - "package.json"
-  - "next.config.ts"
-  - "tsconfig.json"
-  - "postcss.config.mjs"
-  - "components.json"
+  - "next.config.mjs"
   - ".env.local"
 
 win:
@@ -26,6 +29,9 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: FounderOS
   installerIcon: public/favicon.ico
   uninstallerIcon: public/favicon.ico
 

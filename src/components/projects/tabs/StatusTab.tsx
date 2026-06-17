@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { StageBadge } from "@/components/projects/StageBadge";
-import { PriorityBadge } from "@/components/projects/PriorityBadge";
+import { useDebouncedUpdater } from "@/hooks/useDebouncedUpdater";
 import type { Project, ProjectTask, TaskStatus, ProjectPriority } from "@/types";
 import { PROJECT_STAGES, PROJECT_PRIORITIES } from "@/types";
 import { Plus, Check, X, Trash2 } from "lucide-react";
@@ -38,6 +37,27 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
 export function StatusTab({ project, tasks, onUpdateProject, onAddTask, onUpdateTask, onDeleteTask }: Props) {
   const [newTask, setNewTask] = useState("");
   const [addingTask, setAddingTask] = useState(false);
+
+  // Mirror the project locally so editing Current Focus / Next Action / Progress
+  // updates the UI instantly while persistence is debounced — one write per
+  // pause instead of one per keystroke or slider step. Stage/Priority are
+  // discrete single selections, so they keep persisting immediately. Re-sync
+  // only when a different project loads (adjust-state-during-render pattern).
+  const [form, setForm] = useState(project);
+  const [syncedId, setSyncedId] = useState(project.id);
+  if (project.id !== syncedId) {
+    setSyncedId(project.id);
+    setForm(project);
+  }
+  const { push } = useDebouncedUpdater<Project>(onUpdateProject, 600);
+  const setText = (key: "currentFocus" | "nextAction", value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    push({ [key]: value } as Partial<Project>);
+  };
+  const setPercent = (value: number) => {
+    setForm((f) => ({ ...f, percentComplete: value }));
+    push({ percentComplete: value });
+  };
 
   const handleAddTask = async () => {
     if (!newTask.trim()) return;
@@ -78,18 +98,18 @@ export function StatusTab({ project, tasks, onUpdateProject, onAddTask, onUpdate
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Progress: {project.percentComplete}%</Label>
+            <Label className="text-xs">Progress: {form.percentComplete}%</Label>
             <Slider
-              value={[project.percentComplete]}
-              onValueChange={(v) => onUpdateProject({ percentComplete: v as number })}
+              value={[form.percentComplete]}
+              onValueChange={(v) => setPercent(v as number)}
               max={100} step={5} className="w-full"
             />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Current Focus</Label>
             <Input
-              value={project.currentFocus || ""}
-              onChange={e => onUpdateProject({ currentFocus: e.target.value })}
+              value={form.currentFocus || ""}
+              onChange={e => setText("currentFocus", e.target.value)}
               placeholder="What are you focused on right now?"
               className="h-8 text-sm"
             />
@@ -97,8 +117,8 @@ export function StatusTab({ project, tasks, onUpdateProject, onAddTask, onUpdate
           <div className="space-y-1.5">
             <Label className="text-xs">Next Action</Label>
             <Input
-              value={project.nextAction || ""}
-              onChange={e => onUpdateProject({ nextAction: e.target.value })}
+              value={form.nextAction || ""}
+              onChange={e => setText("nextAction", e.target.value)}
               placeholder="What's the very next step?"
               className="h-8 text-sm"
             />

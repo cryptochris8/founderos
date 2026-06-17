@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, FileText, Zap, BookTemplate, Settings, Rocket, LogOut } from "lucide-react";
+import { LayoutDashboard, FolderOpen, FileText, Zap, BookTemplate, Images, Settings, Rocket, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/templates", label: "Templates", icon: BookTemplate },
   { href: "/prompts", label: "Prompts", icon: Zap },
   { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/assets", label: "Assets", icon: Images },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

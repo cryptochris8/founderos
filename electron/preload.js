@@ -33,4 +33,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runClaudeCode: (folderPath, claudeCommand) =>
     ipcRenderer.invoke("run-claude-code", folderPath, claudeCommand),
   runCommand: (preset) => ipcRenderer.invoke("run-command", preset),
+
+  // Google OAuth (system-browser loopback flow)
+  googleOAuth: (clientId, clientSecret) =>
+    ipcRenderer.invoke("google-oauth", clientId, clientSecret),
 });

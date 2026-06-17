@@ -2,24 +2,46 @@ const { app, BrowserWindow, shell, ipcMain, dialog, Notification } = require("el
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
-const { spawn } = require("child_process");
+const http = require("http");
+const crypto = require("crypto");
+const { spawn, spawnSync } = require("child_process");
 const net = require("net");
 const { parse: parseShell } = require("shell-quote");
 
 const PORT = 3000;
-const DEV = process.env.NODE_ENV !== "production";
+// app.isPackaged is the reliable production signal — Electron does not set
+// NODE_ENV=production in a packaged build, so relying on it alone made the
+// installed app run `next dev` instead of `next start`. NODE_ENV is still
+// honored so `npm run electron:start` can exercise the production path.
+const DEV = !app.isPackaged && process.env.NODE_ENV !== "production";
+
+// Hide "Electron" / "FounderOS" from the user agent so Google OAuth doesn't
+// reject the popup as a non-standard browser (disallowed_useragent). Matches
+// Electron's bundled Chromium version so the UA is still authentic.
+const CLEAN_CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+app.userAgentFallback = CLEAN_CHROME_UA;
+
+// userAgentFallback alone is not enough — Electron applies a session-level
+// default UA (containing "Electron" + the app name) that wins for new
+// webContents. setUserAgent on the contents directly overrides it, and
+// firing on web-contents-created catches the main window AND every popup
+// (including the Google OAuth popup) before its first navigation.
+app.on("web-contents-created", (_event, contents) => {
+  contents.setUserAgent(CLEAN_CHROME_UA);
+});
 
 let mainWindow;
 let nextProcess;
 
 function createWindow() {
+  const iconPath = path.join(__dirname, "..", "public", "favicon.ico");
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 900,
     minHeight: 600,
     title: "FounderOS",
-    icon: path.join(__dirname, "..", "public", "favicon.ico"),
+    ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -36,7 +58,8 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Open external links in the system browser, not Electron
+  // Open external links in the system browser, not Electron. Google OAuth
+  // uses the dedicated google-oauth IPC handler below, not window.open.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http")) {
       shell.openExternal(url);
@@ -119,6 +142,133 @@ ipcMain.on("open-external", (_event, url) => {
 // App version
 ipcMain.handle("get-app-version", () => {
   return app.getVersion();
+});
+
+// ── Google OAuth (system-browser loopback flow) ──────────────────────────────
+// Google blocks signInWithPopup in Electron with "this browser may not be
+// secure" regardless of user-agent spoofing. The official desktop pattern is
+// to open the OAuth URL in the user's real browser and capture the redirect
+// on a loopback HTTP server. PKCE means no client secret is required.
+
+function base64urlEncode(buf) {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]),
+  );
+}
+
+ipcMain.handle("google-oauth", async (_event, clientId, clientSecret) => {
+  if (!clientId || typeof clientId !== "string") {
+    return {
+      success: false,
+      error: "Google OAuth client ID missing. Set NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID in .env.local and rebuild.",
+    };
+  }
+  if (!clientSecret || typeof clientSecret !== "string") {
+    return {
+      success: false,
+      error:
+        "Google OAuth client secret missing. Open your Desktop-app OAuth client in Google Cloud Console, copy its client secret into NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET in .env.local, then rebuild.",
+    };
+  }
+
+  const server = http.createServer();
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const port = server.address().port;
+    const redirectUri = `http://127.0.0.1:${port}/`;
+
+    const codeVerifier = base64urlEncode(crypto.randomBytes(32));
+    const codeChallenge = base64urlEncode(
+      crypto.createHash("sha256").update(codeVerifier).digest(),
+    );
+    const state = base64urlEncode(crypto.randomBytes(16));
+
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", "openid email profile");
+    authUrl.searchParams.set("code_challenge", codeChallenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("prompt", "select_account");
+
+    const codePromise = new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn(value);
+      };
+      const timer = setTimeout(
+        () => finish(reject, new Error("Google sign-in timed out — please try again.")),
+        5 * 60 * 1000,
+      );
+      server.on("request", (req, res) => {
+        const url = new URL(req.url, redirectUri);
+        if (url.pathname !== "/") {
+          res.writeHead(404);
+          res.end();
+          return;
+        }
+        const recvState = url.searchParams.get("state");
+        const recvCode = url.searchParams.get("code");
+        const recvError = url.searchParams.get("error");
+        const body = recvError
+          ? `<h2>Sign-in failed</h2><p>${escapeHtml(recvError)}</p><p>You can close this tab and try again in FounderOS.</p>`
+          : `<h2>Sign-in complete</h2><p>You can close this tab and return to FounderOS.</p>`;
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><html><body style="font-family:system-ui,sans-serif;padding:48px;text-align:center;background:#09090b;color:#fafafa">${body}</body></html>`,
+        );
+        if (recvError) finish(reject, new Error(`Google returned error: ${recvError}`));
+        else if (recvState !== state)
+          finish(reject, new Error("OAuth state mismatch — please try again."));
+        else if (!recvCode) finish(reject, new Error("Google did not return an authorization code."));
+        else finish(resolve, recvCode);
+      });
+    });
+
+    await shell.openExternal(authUrl.toString());
+    const code = await codePromise;
+
+    // Google's Desktop-app OAuth clients require the (non-confidential) client
+    // secret in the token exchange even with PKCE — omitting it returns
+    // "client_secret is missing".
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        code_verifier: codeVerifier,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri,
+      }),
+    });
+    if (!tokenRes.ok) {
+      const text = await tokenRes.text();
+      throw new Error(`Token exchange failed (${tokenRes.status}): ${text}`);
+    }
+    const tokens = await tokenRes.json();
+    if (!tokens.id_token) {
+      throw new Error("Google did not return an ID token. Check OAuth client configuration.");
+    }
+    return { success: true, idToken: tokens.id_token, accessToken: tokens.access_token || null };
+  } catch (err) {
+    return { success: false, error: err.message || String(err) };
+  } finally {
+    try { server.close(); } catch {}
+  }
 });
 
 // ── FounderOS Desktop Actions ────────────────────────────────────────────────
@@ -299,11 +449,18 @@ function startNextServer() {
       env: { ...process.env, BROWSER: "none" },
     });
   } else {
-    nextProcess = spawn("npx", ["next", "start", "--port", String(PORT)], {
+    // Production: run the next binary directly under Electron's bundled
+    // Node (ELECTRON_RUN_AS_NODE=1) so the installer doesn't depend on
+    // the user having Node/npx on PATH, and so we avoid shell parsing.
+    const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
+    nextProcess = spawn(process.execPath, [nextBin, "start", "--port", String(PORT)], {
       cwd: projectRoot,
-      shell: true,
       stdio: "pipe",
-      env: { ...process.env, BROWSER: "none" },
+      env: {
+        ...process.env,
+        BROWSER: "none",
+        ELECTRON_RUN_AS_NODE: "1",
+      },
     });
   }
 
@@ -318,6 +475,30 @@ function startNextServer() {
   nextProcess.on("error", (err) => {
     console.error("Failed to start Next.js server:", err);
   });
+}
+
+// Stop the embedded Next.js server and ALL of its children. On Windows a plain
+// nextProcess.kill() only signals the immediate child (a shell in dev, the node
+// parent in prod) and leaves the real server + Turbopack workers alive, holding
+// port 3000 — so the next launch fails with EADDRINUSE and hangs. taskkill /T
+// kills the whole tree; spawnSync so it finishes before the app exits. Null out
+// nextProcess so the window-all-closed + before-quit handlers don't double-fire.
+function stopNextServer() {
+  if (!nextProcess || !nextProcess.pid) {
+    nextProcess = null;
+    return;
+  }
+  const pid = nextProcess.pid;
+  nextProcess = null;
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      process.kill(pid, "SIGTERM");
+    }
+  } catch {
+    // best effort — the OS reclaims the port once the process tree is gone
+  }
 }
 
 // ── Auto Updater ─────────────────────────────────────────────────────────────
@@ -373,16 +554,12 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (nextProcess) {
-    nextProcess.kill();
-  }
+  stopNextServer();
   app.quit();
 });
 
 app.on("before-quit", () => {
-  if (nextProcess) {
-    nextProcess.kill();
-  }
+  stopNextServer();
 });
 
 app.on("activate", () => {
