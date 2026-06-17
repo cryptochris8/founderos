@@ -45,12 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // regardless of user-agent spoofing.
     if (typeof window !== "undefined" && window.electronAPI?.googleOAuth) {
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID;
+      const clientSecret = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET;
       if (!clientId) {
         throw new Error(
           "NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is not set. Create a Desktop OAuth client in Google Cloud Console and add its client ID to .env.local, then rebuild.",
         );
       }
-      const res = await window.electronAPI.googleOAuth(clientId);
+      const res = await window.electronAPI.googleOAuth(clientId, clientSecret);
       if (!res.success || !res.idToken) {
         throw new Error(res.error || "Google sign-in failed");
       }

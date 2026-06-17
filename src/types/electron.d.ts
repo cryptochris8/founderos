@@ -42,7 +42,7 @@ export interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string; canceled?: boolean }>;
 
   // Google OAuth via system browser + loopback (desktop-only)
-  googleOAuth: (clientId: string) => Promise<{
+  googleOAuth: (clientId: string, clientSecret?: string) => Promise<{
     success: boolean;
     idToken?: string;
     accessToken?: string | null;

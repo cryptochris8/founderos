@@ -160,11 +160,18 @@ function escapeHtml(s) {
   );
 }
 
-ipcMain.handle("google-oauth", async (_event, clientId) => {
+ipcMain.handle("google-oauth", async (_event, clientId, clientSecret) => {
   if (!clientId || typeof clientId !== "string") {
     return {
       success: false,
       error: "Google OAuth client ID missing. Set NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID in .env.local and rebuild.",
+    };
+  }
+  if (!clientSecret || typeof clientSecret !== "string") {
+    return {
+      success: false,
+      error:
+        "Google OAuth client secret missing. Open your Desktop-app OAuth client in Google Cloud Console, copy its client secret into NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET in .env.local, then rebuild.",
     };
   }
 
@@ -233,11 +240,15 @@ ipcMain.handle("google-oauth", async (_event, clientId) => {
     await shell.openExternal(authUrl.toString());
     const code = await codePromise;
 
+    // Google's Desktop-app OAuth clients require the (non-confidential) client
+    // secret in the token exchange even with PKCE — omitting it returns
+    // "client_secret is missing".
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: clientId,
+        client_secret: clientSecret,
         code,
         code_verifier: codeVerifier,
         grant_type: "authorization_code",

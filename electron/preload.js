@@ -35,5 +35,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runCommand: (preset) => ipcRenderer.invoke("run-command", preset),
 
   // Google OAuth (system-browser loopback flow)
-  googleOAuth: (clientId) => ipcRenderer.invoke("google-oauth", clientId),
+  googleOAuth: (clientId, clientSecret) =>
+    ipcRenderer.invoke("google-oauth", clientId, clientSecret),
 });
