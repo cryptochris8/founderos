@@ -15,26 +15,25 @@ function toTimestampString(ts: unknown): string {
 
 function docToProject(docSnapshot: { id: string; data: () => Record<string, unknown> }): Project {
   const data = docSnapshot.data();
+  // Spread the stored document first so optional fields added over time
+  // (workspace paths, links, social, tool overrides, command presets, Claude
+  // context, marketing notes, launch checklist, …) survive the round-trip
+  // instead of being silently dropped. Then normalize the id, the required
+  // fields, the array fields (default to []), and the Timestamp-valued date
+  // fields. Mirrors the deserialization style used in subcollections.ts and
+  // globals.ts, and keeps this mapper from drifting out of sync with Project.
   return {
+    ...(data as Partial<Project>),
     id: docSnapshot.id,
-    ownerId: data.ownerId as string || "",
-    title: data.title as string || "",
-    slug: data.slug as string || "",
-    shortDescription: data.shortDescription as string || "",
-    longDescription: data.longDescription as string | undefined,
-    categoryId: data.categoryId as string || "",
+    ownerId: (data.ownerId as string) || "",
+    title: (data.title as string) || "",
+    slug: (data.slug as string) || "",
+    shortDescription: (data.shortDescription as string) || "",
+    categoryId: (data.categoryId as string) || "",
     tags: (data.tags as string[]) || [],
     stage: (data.stage as ProjectStage) || "Idea",
     priority: (data.priority as ProjectPriority) || "Medium",
     percentComplete: (data.percentComplete as number) || 0,
-    currentFocus: data.currentFocus as string | undefined,
-    nextAction: data.nextAction as string | undefined,
-    targetAudience: data.targetAudience as string | undefined,
-    problemSolved: data.problemSolved as string | undefined,
-    valueProposition: data.valueProposition as string | undefined,
-    monetizationModel: data.monetizationModel as string | undefined,
-    revenuePotential: data.revenuePotential as number | undefined,
-    strategicImportance: data.strategicImportance as number | undefined,
     techStack: (data.techStack as string[]) || [],
     platformTargets: (data.platformTargets as string[]) || [],
     dependencies: (data.dependencies as string[]) || [],
@@ -42,17 +41,6 @@ function docToProject(docSnapshot: { id: string; data: () => Record<string, unkn
     repoLinks: (data.repoLinks as string[]) || [],
     deploymentLinks: (data.deploymentLinks as string[]) || [],
     externalToolLinks: (data.externalToolLinks as string[]) || [],
-    designDirection: data.designDirection as string | undefined,
-    researchSummary: data.researchSummary as string | undefined,
-    mvpDefinition: data.mvpDefinition as string | undefined,
-    featureRoadmap: data.featureRoadmap as string | undefined,
-    masterPrompt: data.masterPrompt as string | undefined,
-    claudeBuildPrompt: data.claudeBuildPrompt as string | undefined,
-    effortScore: data.effortScore as number | undefined,
-    revenueScore: data.revenueScore as number | undefined,
-    excitementScore: data.excitementScore as number | undefined,
-    launchReadinessScore: data.launchReadinessScore as number | undefined,
-    focusScore: data.focusScore as number | undefined,
     isArchived: (data.isArchived as boolean) || false,
     createdAt: toTimestampString(data.createdAt),
     updatedAt: toTimestampString(data.updatedAt),
