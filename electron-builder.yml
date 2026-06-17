@@ -29,6 +29,9 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: FounderOS
   installerIcon: public/favicon.ico
   uninstallerIcon: public/favicon.ico
 
