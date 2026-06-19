@@ -191,7 +191,7 @@ export default function AssetsPage() {
                       >
                         <FolderOpen className="h-3.5 w-3.5" /> Open
                       </Button>
-                      <Link href={`/projects/${p.id}`}>
+                      <Link href={`/projects/view?id=${p.id}`}>
                         <Button variant="ghost" size="sm" className="gap-1.5">
                           <ExternalLink className="h-3.5 w-3.5" /> Project
                         </Button>
@@ -213,7 +213,7 @@ export default function AssetsPage() {
                   {projectsMissingAssets.map((p) => (
                     <Link
                       key={p.id}
-                      href={`/projects/${p.id}`}
+                      href={`/projects/view?id=${p.id}`}
                       className="flex items-center justify-between p-2 rounded hover:bg-accent transition-colors text-sm"
                     >
                       <span>{p.title}</span>

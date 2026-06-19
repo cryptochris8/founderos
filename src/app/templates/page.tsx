@@ -46,7 +46,7 @@ export default function TemplatesPage() {
       mvpDefinition: selected.starterRoadmap,
       isArchived: false,
     });
-    router.push(`/projects/${id}`);
+    router.push(`/projects/view?id=${id}`);
   };
 
   return (

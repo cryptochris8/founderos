@@ -105,7 +105,7 @@ export default function ProjectsPage() {
                 {filtered.map(p => (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
                     <td className="px-4 py-3">
-                      <Link href={`/projects/${p.id}`} className="font-medium hover:text-primary transition-colors">{p.title}</Link>
+                      <Link href={`/projects/view?id=${p.id}`} className="font-medium hover:text-primary transition-colors">{p.title}</Link>
                       <p className="text-xs text-muted-foreground line-clamp-1">{p.shortDescription}</p>
                     </td>
                     <td className="px-4 py-3"><StageBadge stage={p.stage} /></td>

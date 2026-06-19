@@ -47,7 +47,7 @@ export default function NewProjectPage() {
         nextAction: form.nextAction,
         isArchived: false,
       });
-      router.push(`/projects/${id}`);
+      router.push(`/projects/view?id=${id}`);
     } catch (err) {
       console.error(err);
     } finally {

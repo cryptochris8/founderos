@@ -2,24 +2,21 @@ appId: com.founderos.app
 productName: FounderOS
 copyright: Copyright © 2026
 
-# Disabled because the embedded Next.js server spawns a child process
-# whose cwd must be a real filesystem path. Inside an asar archive,
-# next start cannot read .next/ files or set cwd, causing the window
-# to hang on a loading state forever.
-asar: false
+# Re-enabled: the app now ships a prebuilt static export (out/) served by an
+# in-process file server, so there is no `next start` child process that needs
+# a real on-disk cwd. fs reads of out/ work transparently from inside the asar.
+asar: true
 
 directories:
   output: dist-electron
 
 files:
+  # The packaged app is just the Electron shell + the static export. The web
+  # app's deps are compiled into out/, and electron-builder auto-includes the
+  # (now tiny) production dependencies — electron-updater + shell-quote.
   - "electron/**/*"
-  - "public/**/*"
-  - "src/**/*"
-  - ".next/**/*"
-  - "node_modules/**/*"
+  - "out/**/*"
   - "package.json"
-  - "next.config.mjs"
-  - ".env.local"
 
 win:
   target:

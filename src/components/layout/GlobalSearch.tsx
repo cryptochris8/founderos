@@ -60,7 +60,7 @@ export function GlobalSearch() {
 
   const navigate = (id: string) => {
     setOpen(false);
-    router.push(`/projects/${id}`);
+    router.push(`/projects/view?id=${id}`);
   };
 
   return (

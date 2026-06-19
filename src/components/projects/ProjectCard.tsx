@@ -10,7 +10,7 @@ import { ArrowRight } from "lucide-react";
 export function ProjectCard({ project }: { project: Project }) {
   const updated = formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true });
   return (
-    <Link href={`/projects/${project.id}`}>
+    <Link href={`/projects/view?id=${project.id}`}>
       <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
         <CardContent className="pt-5 pb-4 flex flex-col h-full">
           <div className="flex items-start justify-between gap-2 mb-2">

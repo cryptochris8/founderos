@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getProject } from "@/lib/firebase/projects";
 import { getToolchain } from "@/lib/firebase/settings";
@@ -40,8 +40,9 @@ const INITIAL_INPUT: HandoffInput = {
   includeCommandPresets: true,
 };
 
-export default function HandoffPage() {
-  const params = useParams<{ id: string }>();
+function HandoffContent() {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get("id") || "";
   const { user } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [toolchain, setToolchain] = useState<ToolchainDefaults>(DEFAULT_TOOLCHAIN);
@@ -50,9 +51,9 @@ export default function HandoffPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!user || !params.id) return;
+    if (!user || !projectId) return;
     let cancelled = false;
-    Promise.all([getProject(user.uid, params.id), getToolchain(user.uid)])
+    Promise.all([getProject(user.uid, projectId), getToolchain(user.uid)])
       .then(([p, tc]) => {
         if (cancelled) return;
         setProject(p);
@@ -65,7 +66,7 @@ export default function HandoffPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, params.id]);
+  }, [user, projectId]);
 
   const generated = useMemo(() => {
     if (!project) return "";
@@ -136,7 +137,7 @@ export default function HandoffPage() {
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Claude Code Task
               </CardTitle>
-              <Link href={`/projects/${project.id}`}>
+              <Link href={`/projects/view?id=${project.id}`}>
                 <Button variant="ghost" size="sm" className="gap-1.5">
                   <ArrowLeft className="h-3.5 w-3.5" /> Back to project
                 </Button>
@@ -277,5 +278,14 @@ export default function HandoffPage() {
         </Card>
       </div>
     </AppLayout>
+  );
+}
+
+// useSearchParams must be read inside a Suspense boundary for static export.
+export default function HandoffPage() {
+  return (
+    <Suspense fallback={<AppLayout><TopBar title="Generate Handoff" /><div className="p-6">Loading…</div></AppLayout>}>
+      <HandoffContent />
+    </Suspense>
   );
 }

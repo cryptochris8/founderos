@@ -59,7 +59,7 @@ function ProjectListCard({
           <p className="text-sm text-muted-foreground py-2">{emptyMessage}</p>
         ) : (
           projects.map((p) => (
-            <Link key={p.id} href={`/projects/${p.id}`}>
+            <Link key={p.id} href={`/projects/view?id=${p.id}`}>
               <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
                 <div className="min-w-0">
                   <p className="font-medium text-sm truncate">{p.title}</p>
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                               ? "text-yellow-400"
                               : "text-red-400";
                         return (
-                          <Link key={p.id} href={`/projects/${p.id}`}>
+                          <Link key={p.id} href={`/projects/view?id=${p.id}`}>
                             <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
                               <div className="flex items-center gap-2 min-w-0">
                                 <Circle className={`h-2.5 w-2.5 fill-current shrink-0 ${hColor}`} />

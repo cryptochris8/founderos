@@ -31,7 +31,9 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 let mainWindow;
-let nextProcess;
+let nextProcess; // dev only: the spawned `next dev` process
+let staticServer; // production: in-process static file server for out/
+let appUrl = `http://localhost:${PORT}`;
 
 function createWindow() {
   const iconPath = path.join(__dirname, "..", "public", "favicon.ico");
@@ -52,7 +54,7 @@ function createWindow() {
     autoHideMenuBar: true,
   });
 
-  mainWindow.loadURL(`http://localhost:${PORT}`);
+  mainWindow.loadURL(appUrl);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
@@ -501,6 +503,74 @@ function stopNextServer() {
   }
 }
 
+// ── Static file server (production) ──────────────────────────────────────────
+// In a packaged build we serve the static export in `out/` from a tiny
+// in-process HTTP server on a random loopback port. This replaces the embedded
+// `next start` server entirely: no Next.js runtime is shipped, startup is
+// instant, and there is no fixed-port (3000) dependency to collide or leak.
+
+const MIME_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json; charset=utf-8",
+};
+
+function startStaticServer(rootDir) {
+  const root = path.resolve(rootDir);
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const urlPath = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+      // Next's static export emits e.g. /dashboard.html and /projects/view.html,
+      // so map an extensionless route to its .html (or index.html) file.
+      const base = path.join(root, urlPath);
+      const candidates =
+        urlPath === "/"
+          ? [path.join(root, "index.html")]
+          : [base, `${base}.html`, path.join(base, "index.html")];
+
+      let filePath = candidates.find((p) => {
+        const resolved = path.resolve(p);
+        // Refuse anything that escapes the export root (path traversal).
+        if (resolved !== root && !resolved.startsWith(root + path.sep)) return false;
+        try {
+          return fs.statSync(resolved).isFile();
+        } catch {
+          return false;
+        }
+      });
+
+      const status = filePath ? 200 : 404;
+      if (!filePath) filePath = path.join(root, "404.html");
+
+      try {
+        const data = fs.readFileSync(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        res.writeHead(status, { "Content-Type": MIME_TYPES[ext] || "application/octet-stream" });
+        res.end(data);
+      } catch {
+        res.writeHead(500);
+        res.end("Internal error");
+      }
+    });
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve(server));
+  });
+}
+
 // ── Auto Updater ─────────────────────────────────────────────────────────────
 
 autoUpdater.autoDownload = false;
@@ -535,15 +605,22 @@ autoUpdater.on("update-downloaded", () => {
 // ── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
-  startNextServer();
-
   try {
-    console.log("Waiting for Next.js server to start...");
-    await waitForServer(PORT);
-    console.log("Next.js server is ready!");
+    if (DEV) {
+      // Dev: run `next dev` for hot reload, then point the window at it.
+      startNextServer();
+      console.log("Waiting for Next.js dev server to start...");
+      await waitForServer(PORT);
+      appUrl = `http://localhost:${PORT}`;
+      console.log("Next.js dev server is ready!");
+    } else {
+      // Production: serve the prebuilt static export — no Next.js runtime.
+      staticServer = await startStaticServer(path.join(__dirname, "..", "out"));
+      appUrl = `http://127.0.0.1:${staticServer.address().port}/`;
+      console.log(`Serving static export at ${appUrl}`);
+    }
     createWindow();
 
-    // Check for updates in production
     if (!DEV) {
       autoUpdater.checkForUpdates().catch(() => {});
     }
@@ -553,13 +630,21 @@ app.whenReady().then(async () => {
   }
 });
 
+function shutdown() {
+  stopNextServer(); // dev: kill the next dev process tree (no-op in production)
+  if (staticServer) {
+    try { staticServer.close(); } catch {}
+    staticServer = null;
+  }
+}
+
 app.on("window-all-closed", () => {
-  stopNextServer();
+  shutdown();
   app.quit();
 });
 
 app.on("before-quit", () => {
-  stopNextServer();
+  shutdown();
 });
 
 app.on("activate", () => {
