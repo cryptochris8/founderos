@@ -9,9 +9,13 @@ A snapshot for future agents and contributors. Updated after Phase 1 of the upgr
 - **TypeScript** strict mode
 - **Tailwind 4** + **shadcn/ui** components in `src/components/ui/`
 - **Firebase** v12 — Auth (email/password + Google), Firestore, Storage
-- **Electron 41** desktop shell (`main.js` boots Next.js then opens a `BrowserWindow`)
+- **Electron 41** desktop shell. Production serves a **static export** (`out/`) via a tiny in-process file server on a random loopback port — no Next.js server, no fixed port. Dev runs `next dev` for hot reload.
 - **electron-updater** for auto-updates
 - Node 22 LTS (electron-rebuild requires ≥22.12)
+
+## Packaging — static export (Phase 2)
+
+The web app builds with `output: "export"` to a self-contained `out/` (~3.3 MB; the OAuth secret + Firebase config are inlined). Electron serves it directly in production, so the installer ships only the Electron runtime + `out/` + the two real runtime deps (`electron-updater`, `shell-quote`); the rest of the toolchain (next/react/firebase/…) is in `devDependencies` and compiled into `out/`. `asar` is enabled. Result: ~96 MB installer (down from ~834 MB), near-instant startup, no port-3000 dependency. Because static export can't prerender unknown dynamic ids, project detail/handoff use query-param routes (`/projects/view?id=`, `/projects/view/handoff?id=`) read via `useSearchParams`.
 
 ## Repository layout
 
@@ -26,9 +30,9 @@ src/
     projects/
       page.tsx         Grid/table list with filters
       new/             Create form
-      [id]/
+      view/            Detail + handoff as static query-param routes (?id=)
         page.tsx       Project detail with 10 tabs
-        handoff/       NEW (Phase 1): Claude Code handoff generator
+        handoff/       Claude Code handoff generator
     documents/         Global docs CRUD
     prompts/           Global prompts CRUD
     templates/         Project template browser
